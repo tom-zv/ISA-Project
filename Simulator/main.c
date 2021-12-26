@@ -83,7 +83,7 @@ int hex_to_dec(char* hex_data, int hex_size, int* hex_index) {
 	memcpy(hex, hex_data, hex_size);
 	hex[hex_size] = '\0';
 
-	int decimal = strtol(hex, NULL, 16);
+	int decimal = strtol(hex, NULL, 16); //TODO - signed hex strtol if it is needed.
 
 	free(hex);
 
@@ -95,7 +95,7 @@ int hex_to_dec(char* hex_data, int hex_size, int* hex_index) {
 }
 
 // converts dec to binary, storing the resultant binary string in indicated array.
-void* dec_to_bin(int decimal, char* binary) {
+void dec_to_bin(int decimal, char* binary) {
 
 	int i, j;
 
@@ -113,6 +113,36 @@ void* dec_to_bin(int decimal, char* binary) {
 	//binary[WORD] = '\0';   // for debug prints
 
 	return;
+}
+
+//implementation of strtol for signed binary
+int signed_binary_strtol(char *str) {
+	
+	if (str[0] == '1') {   // adjusted conversion for negative numbers.
+
+		char flip_str[WORD + 1];
+		int i;
+
+		for (i = 0; i < WORD; i++) {      // flip all bits of the signed representation
+
+			if (str[i] == '0') {
+				flip_str[i] = '1';
+			}							 
+			else {                       
+				flip_str[i] = '0';
+			}
+
+		}
+
+		int num = - strtol(flip_str, NULL, 2) - 1 ;   // strtol of flipped bits, minus one, gives us the correct conversion for signed negative numbers.
+		return num;
+			
+	}
+
+
+	int num = strtol(str, NULL, 2);
+	return num;
+
 }
 
 // decodes the given instruction from hex to dec, storing the results in the given array of instruction fields.
@@ -134,7 +164,7 @@ void decode_instruction(char* hex_data, int* field_array) {
 }
 
 // executes an instruction.
-void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS][WORD + 1], int* PC) {
+void execute_instruction(int *instruction_fields_array[NUM_OF_INST_FIELDS], char R[NUM_OF_REGISTERS][WORD + 1], int PC) {
 
 	int opcode = instruction_fields_array[0];
 	int rd = instruction_fields_array[1];
@@ -156,8 +186,8 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 	case 0:  //add
 
 		printf("opcode %d, instruction: add\n", opcode);
-		
-		result = strtol(R[rs], NULL, 2) + strtol(R[rt], NULL, 2) + strtol(R[rm], NULL, 2);
+
+		result = signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt]) + signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -170,7 +200,7 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: sub\n", opcode);
 
-		result = strtol(R[rs], NULL, 2) - strtol(R[rt], NULL, 2) - strtol(R[rm], NULL, 2);
+		result = signed_binary_strtol(R[rs]) - signed_binary_strtol(R[rt]) - signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -181,7 +211,7 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: mac\n", opcode);
 
-		result = strtol(R[rs], NULL, 2) * strtol(R[rt], NULL, 2) + strtol(R[rm], NULL, 2);
+		result = signed_binary_strtol(R[rs]) * signed_binary_strtol(R[rt]) - signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -192,7 +222,7 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: and\n", opcode);
 		
-		result = strtol(R[rs], NULL, 2) & strtol(R[rt], NULL, 2) & strtol(R[rm], NULL, 2);
+		result = signed_binary_strtol(R[rs]) & signed_binary_strtol(R[rt]) & signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -203,7 +233,7 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: or\n", opcode);
 		
-		result = strtol(R[rs], NULL, 2) | strtol(R[rt], NULL, 2) | strtol(R[rm], NULL, 2);
+		result = signed_binary_strtol(R[rs]) | signed_binary_strtol(R[rt]) | signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -214,7 +244,7 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: xor\n", opcode);
 
-		result = strtol(R[rs], NULL, 2) ^ strtol(R[rt], NULL, 2) ^ strtol(R[rm], NULL, 2);
+		result = signed_binary_strtol(R[rs]) ^ signed_binary_strtol(R[rt]) ^ signed_binary_strtol(R[rm]);
 		dec_to_bin(result, R[rd]);
 
 		//R[rd][WORD] = '\0';
@@ -224,11 +254,22 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 	case 6: //sll
 
 		printf("opcode %d, instruction: sll\n", opcode);
+		
+		result = signed_binary_strtol(R[rs]) << signed_binary_strtol(R[rt]);
+		dec_to_bin(result, R[rd]);
+
+		//R[rd][WORD] = '\0';
+		//printf("result %s\n", R[rd]);
+
 		break;
 
 	case 7: //sra
 
-		printf("opcode %d, instruction: sra\n", opcode);														
+		printf("opcode %d, instruction: sra\n", opcode);
+
+		result = strtol(R[rs], NULL, 2) << strtol(R[rt], NULL, 2);
+		dec_to_bin(result, R[rd]);
+
 		break;
 
 	case 8: //srl
@@ -309,10 +350,6 @@ void execute_instruction(int* instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 
 
-
-
-
-
 void main(int argc, char* argv[]) {
 
 	char* imemin, * dmemin;
@@ -328,6 +365,12 @@ void main(int argc, char* argv[]) {
 
 	int dec = 127;
 	dec_to_bin(dec, registers[7]);   // manual registry assignments for testing. 
+
+	dec = 32;
+	dec_to_bin(dec, registers[8]);
+
+	
+    
 	
 	//
 
@@ -335,6 +378,7 @@ void main(int argc, char* argv[]) {
 	int tmp_cond = 1; // while loop exit condition, temporary for controlling how many instructions are ran.
 
 	while (tmp_cond != 2) {
+
 
 		decode_instruction(imemin + PC * IMEM_LINE_SIZE, inst_field_array);
 
@@ -344,10 +388,12 @@ void main(int argc, char* argv[]) {
 		}
 		printf("\n");*/
 
-		execute_instruction(&inst_field_array, &registers, &PC);
+		execute_instruction(&inst_field_array, &registers, PC);
 
 		PC++;  //  TODO add logic to increment PC here OR from the instruction.
 		tmp_cond++;
 	}
 
+	registers[3][WORD] = '\0';              // print result in v0, for debugging.
+	printf("result %s\n", registers[3]);
 }
