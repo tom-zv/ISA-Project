@@ -10,6 +10,7 @@
 #define IMEM_LINE_SIZE 12
 #define DMEM_LINE_SIZE 8
 #define DISK_LINE_SIZE 8
+#define TRACE_LINE_SIZE 160
 
 #define NUM_OF_INST_FIELDS 7
 #define NUM_OF_REGISTERS 16
@@ -19,15 +20,20 @@
 #define MEM_SIZE 4096
 #define DISK_SIZE 128 * 128
 #define MONITOR_BUFF_SIZE 256
+#define MAX_LINES 16385
 
 #define PC_SIZE 12
 #define WORD 32
 
 
-// malloc wrapper with added check
-void* malloc_and_check(size_t bytes) {
+/*
+  description: 
+	malloc wrapper with added check
+ 
+*/
+void* calloc_and_check(size_t count, size_t elem_size) {
 
-	void* ptr = malloc(bytes);
+	void* ptr = calloc(count, elem_size);
 
 	if (ptr == NULL) {
 		printf("Memory assignment error encountered\nTerminating program...");
@@ -37,14 +43,21 @@ void* malloc_and_check(size_t bytes) {
 	return (ptr);
 }
 
-// read data from file, returns malloc`d data
+
+/*
+  description:
+	 read data from file, returns malloc`d data
+
+*/
 void* readfile(char* p_fname, int line_size, int data_size) {
 
 	FILE* fptr;
 	int i = 0;
 
-	char* p_line_buffer = malloc_and_check(line_size);
-	char* data = malloc_and_check(data_size * (line_size + 1));
+	char* p_line_buffer = calloc_and_check(line_size, sizeof(char));
+	char* data = calloc_and_check(data_size * (line_size + 1), sizeof(char));
+
+	memset(data, '0', data_size * (line_size));
 
 	fopen_s(&fptr, p_fname, "r");
 
@@ -68,8 +81,11 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 			data = temp_buffer;
 		}
 
-		p_line_buffer[strcspn(p_line_buffer, "\n")] = 0;
-		memcpy(data + i * line_size, p_line_buffer, line_size + 2);
+		//p_line_buffer[strcspn(p_line_buffer, "\n")] = 0;
+
+		memcpy(data + i * line_size, p_line_buffer, line_size);
+
+		//printf("data = %s  line = %s\n", data,p_line_buffer);
 
 		/*int j;
 		printf("\n[%d] ", i);
@@ -79,20 +95,84 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 
 		i++;
 	}
+
+	//data[(i-1) * line_size ] = 'F';    /// init with calloc for zeroed arrays. manually add '\0' when accessing file 
+	//data[(i-1) * line_size +1] = 'N';
 	fclose(fptr);
 
 	return data;
 }
 
-// Converts 'hex_size' bytes of hex to decimal. starts from hex_index. increments hex_index by number of bytes read, for the next conversion.
-// input NULL for hex_index if there is no need for index icrementing.
+/*
+  description:
+	 write data to output file.
+
+*/
+void* writefile(char* p_fname, int line_size, char* data_buffer) {
+
+	FILE* fptr;
+	int buffer_index = 0;
+	int line_num = 0;
+	char* line = calloc_and_check(line_size + 1, sizeof(char));
+
+
+	fopen_s(&fptr, p_fname, "w");
+	if (fptr == NULL) {
+		printf("IO error encountered\nTerminating program...");
+		exit(-1);
+	}
+
+
+	while (line_num < MAX_LINES) {      // max size to prevent infinite loop if null character cant be found.
+
+		memcpy(line, data_buffer + buffer_index, line_size);
+		buffer_index += line_size;
+
+		line[line_size] = '\0';
+
+		if (data_buffer[buffer_index] != '\0') {     // check if next line is the last, if it is, dont print a newline
+
+			fprintf(fptr, "%s\n", line);
+		}
+		else {
+			fprintf(fptr, "%s", line);
+			break;
+		}
+		
+		line_num++;
+		
+	}
+	
+
+	fclose(fptr);
+	free(line);
+}
+
+/*
+  description:
+	Converts 'hex_size' digits of hex to decimal.
+
+	params:
+		in hex_data - buffer containing the hex representation.
+		in hex_size - number of digits to convert.
+		in,out hex_index - used to increment index when converting a stream of hex numbers. input NULL when no need for increment. 
+*/
 int hex_to_dec(char *hex_data, int hex_size, int *hex_index) {
 
-	char* hex = malloc_and_check(hex_size + 1);
+	char* hex = calloc_and_check(hex_size + 1, sizeof(char));
 	memcpy(hex, hex_data, hex_size);
 	hex[hex_size] = '\0';
 
-	int decimal = strtol(hex, NULL, 16); //TODO - signed hex strtol if it is needed.
+	int decimal = strtol(hex, NULL, 16); 
+
+	if (hex_size > 1 ) {     // signed hex
+
+		printf("\nyippe?\n");
+
+
+	}
+
+
 
 	free(hex);
 
@@ -103,8 +183,17 @@ int hex_to_dec(char *hex_data, int hex_size, int *hex_index) {
 	return decimal;
 }
 
-// decimal to Hex
-void dec_to_hex(char* hex, int dec, int size) {
+
+/*
+  description:
+	decimal to digit hex, stored in indicated array.
+
+	params:
+		in hex - array that stores the hex representation. 
+		in dec - decimal number to convert.
+		in size - number of digits in hex representation - Padded with zeros
+*/
+void dec_to_hex(char* hex, int dec, int size) {  //signed hex needed.
 
 	int temp;
 	int q = dec;
@@ -127,28 +216,13 @@ void dec_to_hex(char* hex, int dec, int size) {
 	
 }
 
-// converts dec to binary, storing the resultant signed binary string in indicated array.
-void set_register(char* binary, int decimal, int len) {
 
-	int i, j;
 
-	for (i = len - 1; i >= 0; i--) {
+/*
+  description:
+	implementation of strtol for signed binary.
 
-		j = decimal >> i;
-
-		if (j & 1) {
-			binary[len - 1 - i] = '1';
-		}
-		else
-			binary[len - 1 - i] = '0';
-	}
-
-	//binary[len] = '\0';   // for debug prints
-
-	return;
-}
-
-// implementation of strtol for signed binary
+*/
 int signed_binary_strtol(char *str) {
 	
 	if (str[0] == '1') {   // adjusted conversion for negative numbers.
@@ -177,7 +251,11 @@ int signed_binary_strtol(char *str) {
 
 }
 
-// manual srl 
+/*
+  description:
+	implementation of logical right shift.
+
+*/
 int right_logical_shift(char* binary, int shamt) {
 
 	if (shamt == 0) {
@@ -201,8 +279,56 @@ int right_logical_shift(char* binary, int shamt) {
 	return signed_binary_strtol(shifted_binary);
 }
 
-// increment binary string representation by one.
-void increment_binary(char *binary, int size) {
+
+
+/*
+  description:
+	copy source register to destination register, taking the lower 'dst_size' bits.
+	'registers' are char arrays containing binary or hex representations of integers.
+
+*/
+void copy_register(char *dst_register, char *src_register, int dst_size) {
+
+	int i;
+	
+	for (i = 0; i < dst_size; i++) {
+
+		dst_register[i] = src_register[WORD - dst_size + i] ;
+	}
+}
+
+
+/*
+  description:
+	converts decimal to binary, storing the resultant signed binary string in indicated register array.
+
+*/
+void set_register(char* binary, int decimal, int len) {
+
+	int i, j;
+
+	for (i = len - 1; i >= 0; i--) {
+
+		j = decimal >> i;
+
+		if (j & 1) {
+			binary[len - 1 - i] = '1';
+		}
+		else
+			binary[len - 1 - i] = '0';
+	}
+
+	//binary[len] = '\0';   // for debug prints
+
+	return;
+}
+
+/*
+  description:
+	increment binary string representation by one.
+
+*/
+void increment_binary(char* binary, int size) {
 
 	int bin_int = strtol(binary, NULL, 2);
 
@@ -211,19 +337,55 @@ void increment_binary(char *binary, int size) {
 
 }
 
-// set PC to indicated binary string, taking the lower 12 bits.
-void set_PC(char* PC, char* binary) {
+/*
+  description:
+	constructs the trace for the current clock.
 
+*/
+void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTERS][WORD + 1]) {
+
+	int PC_int = strtol(PC, NULL, 2);    //
+	char PC_hex[3];						 // convert PC from binary to 3 digit hex representation.
+	dec_to_hex(PC_hex, PC_int, 3);	 	 //
+
+	int trace_index = 0;
+	char register_hex[8];
 	int i;
-	
-	for (i = 0; i < PC_SIZE; i++) {
 
-		PC[i] = binary[WORD - PC_SIZE + i] ;
+
+	memcpy(trace + trace_index, PC_hex, 3);
+	trace_index += 3;
+	memset(trace + trace_index, ' ', 1);
+	trace_index += 1;
+
+	memcpy(trace + trace_index, instruction, IMEM_LINE_SIZE);
+	trace_index += IMEM_LINE_SIZE;
+	memset(trace + trace_index, ' ', 1);
+	trace_index += 1;
+
+	for (i = 0; i < NUM_OF_REGISTERS; i++) {
+
+		int register_int = signed_binary_strtol(R[i]);       // convert registers from binary to 8 digit hex representation.
+		dec_to_hex(register_hex, register_int, 8);	   //
+
+		memcpy(trace + trace_index, register_hex, DMEM_LINE_SIZE);
+		trace_index += DMEM_LINE_SIZE;
+
+		if (i != NUM_OF_REGISTERS - 1) {          // if not on last register, add whitespace.
+			memset(trace + trace_index, ' ', 1);
+			trace_index += 1;
+		}
+
+
 	}
-}
 
-// refreshes decimal value IO registers
-int fetch_IO(int *IO[], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1]) {
+}
+/*
+  description:
+	refreshes decimal value IO registers from their binary representation array.
+
+*/
+void fetch_IO(int *IO[], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1]) {
 
 	int i;
 
@@ -234,7 +396,12 @@ int fetch_IO(int *IO[], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1]) {
 
 }
 
-// decodes the given instruction from hex to dec, storing the results in the given array of instruction fields.
+
+/*
+  description:
+	decodes the given instruction from hex to dec, storing the results in the given array of instruction fields.
+
+*/
 void decode_instruction(char* hex_data, int* field_array) {
 
 	int hex_index = 0;
@@ -252,8 +419,13 @@ void decode_instruction(char* hex_data, int* field_array) {
 	//printf(" %d | %d | %d | %d | %d | %d | %d |\n", opcode, rd, rs, rt, rm, imm1, imm2);
 }
 
-// executes an instruction.
-void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS][WORD + 1], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1], char *dmemin, char *PC) {
+/*
+  description:
+
+	executes a single assembly instruction.
+
+*/
+void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS][WORD + 1], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1], char * dmem, char *PC) {
 
 	int opcode = instruction_fields_array[0];
 	int rd = instruction_fields_array[1];
@@ -379,7 +551,9 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) == signed_binary_strtol(R[rt])) {
 			
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); // reserved1 = 1, to signal PC doesnt need to be incremented
+
 		}
 
 		break;
@@ -390,7 +564,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) != signed_binary_strtol(R[rt])) {
 
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); // reserved1 = 1, to signal PC doesnt need to be incremented
 		}
 
 		break;
@@ -401,7 +576,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) < signed_binary_strtol(R[rt])) {
 
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); 
 		}
 
 		break;
@@ -412,7 +588,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) > signed_binary_strtol(R[rt])) {
 
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); 
 		}
 
 		break;
@@ -423,7 +600,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) <= signed_binary_strtol(R[rt])) {
 
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); 
 		}
 
 		break;
@@ -434,7 +612,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		if (signed_binary_strtol(R[rs]) >= signed_binary_strtol(R[rt])) {
 
-			set_PC(PC, R[rm]);
+			copy_register(PC, R[rm], PC_SIZE);
+			set_register(IO_R[18], 1, WORD); 
 		}
 
 		break;
@@ -446,7 +625,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 		result = strtol(PC, NULL, 2) + 1;
 		set_register(R[rd], result, WORD);
 		
-		set_PC(PC, R[rm]);
+		copy_register(PC, R[rm], PC_SIZE);
+		set_register(IO_R[18], 1, WORD); 
 
 		break;
 		
@@ -454,9 +634,13 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 	case 16: //lw
 
 		printf("opcode %d, instruction: lw\n", opcode);
-
+	
 		index = signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt]);
-		result = hex_to_dec(dmemin + index * DMEM_LINE_SIZE, DMEM_LINE_SIZE, NULL) + signed_binary_strtol(R[rm]) ;
+		if (index < 0) {
+			printf("\n *Assembly instructions bug: attempting write to negative index; skipping instruction!*\n\n");
+			break;
+		}
+		result = hex_to_dec(dmem + index * DMEM_LINE_SIZE, DMEM_LINE_SIZE, NULL) + signed_binary_strtol(R[rm]) ;
 		set_register(R[rd], result, WORD);
 
 		break;
@@ -465,12 +649,19 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: sw\n", opcode);
 
+
+
 		index = signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt]);
+
+		if (index < 0) {
+			printf("\n *Assembly instructions bug: attempting write to negative index; skipping instruction!*\n\n");
+			break;
+		}
 		result = signed_binary_strtol(R[rm]) + signed_binary_strtol(R[rd]);
 		
 		char hex[DMEM_LINE_SIZE];
 		dec_to_hex(hex, result, DMEM_LINE_SIZE);
-		memcpy(dmemin + DMEM_LINE_SIZE * index, hex, DMEM_LINE_SIZE);
+		memcpy(dmem + DMEM_LINE_SIZE * index, hex, DMEM_LINE_SIZE);
 
 
 		break;
@@ -480,7 +671,8 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: reti\n", opcode);
 
-		set_PC(PC, IO_R[7]);                // 
+		copy_register(PC, IO_R[7], PC_SIZE);
+		set_register(IO_R[18], 1, WORD); 
 
 		break;
 
@@ -488,7 +680,13 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: in\n", opcode);
 
-		result = IO_R[signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt])];
+		index = signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt]);
+		if (index < 0) {
+			printf("\n *Assembly instructions bug: attempting write to negative index; skipping instruction!*\n\n");
+			break;
+		}
+
+		result = IO_R[index];
 		set_register(R[rd], result, WORD);
 
 		break;
@@ -498,14 +696,19 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 		printf("opcode %d, instruction: out\n", opcode);
 
 		index = signed_binary_strtol(R[rs]) + signed_binary_strtol(R[rt]);
+		if (index < 0) {
+			printf("\n *Assembly instructions bug: attempting write to negative index; skipping instruction!*\n\n");
+			break;
+		}
+
 		result = signed_binary_strtol(R[rm]);
 		set_register(IO_R[index], result, WORD);
 
 		break;
 	
 	case 21:
-		printf("HALT;");
-		exit(1);
+		printf("HALT;\n");
+		exit(1);            // TODO replace exit with halt flag, so that only the while loop ends.
 
 	default:  //halt; change to case 21?
 		printf("HALT;");
@@ -521,8 +724,7 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 void main(int argc, char* argv[]) {
 
 	char *imem, *dmem, *disk;
-	int frame_buffer = malloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE);
-
+	
 	imem = readfile(argv[1], IMEM_LINE_SIZE, MEM_SIZE);  // contains data in sequence, imemin[ i * data_size] for the i+1 line start address.
 	dmem = readfile(argv[2], DMEM_LINE_SIZE, MEM_SIZE);  
 	disk = readfile(argv[3], DISK_LINE_SIZE, DISK_SIZE);
@@ -543,40 +745,62 @@ void main(int argc, char* argv[]) {
 				  &clks, &leds, &display7seg, &timerenable, &timercurrent, &timermax, &diskcmd, &disksector, &diskbuffer, &diskstatus,
 				  &res1, &res2, &monitoraddr, &monitordata, &monitorcmd };
 
-	int inst_field_array[NUM_OF_INST_FIELDS];
-	int irq;
+	int instruction_fields_array[NUM_OF_INST_FIELDS];
 	int disk_read_end = 0;
+	int irq;
+	int trace_size = 1024 * TRACE_LINE_SIZE;    // initial buffer for trace output will hold 1024 lines, later realloc if needed. 
 
-	//
+	char* trace = calloc_and_check(trace_size, sizeof(char));
+	int* frame_buffer = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE, sizeof(char));
+	
+
+	//-------------------------------------------------------------------------------------       MANUAL ASSIGNMENT 
 
 	int dec = 1;
-	set_register(registers[7], dec, WORD);  // rs
+	set_register(registers[7], dec, WORD);    // rs
 	dec = 0;
-	set_register(registers[8], dec, WORD);  // rt 
+	set_register(registers[8], dec, WORD);    // rt 
 	dec = 1;
-	set_register(registers[9], dec, WORD);  // rm
+	set_register(registers[9], dec, WORD);    // rm
 
-	set_register(IO_registers[11], 1, WORD); // timerenable = 1 
+	//set_register(IO_registers[11], 1, WORD);   // timerenable = 1 
 
-	set_register(IO_registers[14], 1, WORD); // diskcmd = 1 
+	//set_register(IO_registers[14], 1, WORD);   // diskcmd = 0 
 
-	set_register(IO_registers[16], 0, WORD); // diskbuffer = 0
+	//set_register(IO_registers[16], 128, WORD); // diskbuffer = 0
 
-	set_register(IO_registers[15], 0, WORD); // disksector = 0;
-	//
+	//set_register(IO_registers[15], 0, WORD);   // disksector = 0;
+	
+	
+	//--------------------------------------------------------------------------------------
 
 
 	
 	//-----------------------------------------------------------------------------------------------------------------\\
-	//-----------------------------------------------------------------------------------------------------------------\\	
+	//-----------------------------------------------------------------------------------------------------------------\\	            MAIN LOOP
 
 	int tmp_cond = 0; // while loop exit condition, temporary for controlling how many instructions are ran.
 	
-	while (tmp_cond != 1025) {
+	while (tmp_cond != 3) {
 
 		fetch_IO(IO, IO_registers);
 
+		if (trace_size = clks * TRACE_LINE_SIZE * sizeof(char) ) {   // trace buffer realloc, doubling the old buffer size.
+
+			trace_size *= 2;
+			realloc(trace, trace_size);
+
+			if (trace == NULL) {
+				printf("Memory assignment error encountered\nTerminating program...");
+				exit(-1);
+			}
+
+
+		}
+
+
 		if (timercurrent == timermax) {
+
 			irq0status = 1;
 			set_register(IO_registers[3], 1, WORD);
 
@@ -584,15 +808,18 @@ void main(int argc, char* argv[]) {
 			set_register(IO_registers[12], 0, WORD);  
 		}
 		
-		irq = (irq0enable & irq0status) | (irq1enable & irq1status) | (irq2enable & irq2status);        //TODO delete fetch irq
+		irq = (irq0enable & irq0status) | (irq1enable & irq1status) | (irq2enable & irq2status);        
 
 
-		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, inst_field_array);
+		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array);
 
-		PC[PC_SIZE] = '\0';
+		
+		build_trace(trace + (TRACE_LINE_SIZE * clks), &PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers);
+
+		//PC[PC_SIZE] = '\0';
 		//printf("PC = %s | current time = %d\n", PC, timercurrent);
 
-		execute_instruction(&inst_field_array, &registers, &IO_registers, dmem, &PC);
+		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC);
 		fetch_IO(IO, IO_registers);
 
 
@@ -600,12 +827,12 @@ void main(int argc, char* argv[]) {
 
 			if (disk_read_end == 0) {
 
-				if (diskcmd == 1) {      // read
+				if (diskcmd == 1) {      // read from disk
 
-					memcpy(dmem + diskbuffer , disk + (disksector * DISK_LINE_SIZE * 128), 128 * DISK_LINE_SIZE);   // read in one go.
+					memcpy(dmem + diskbuffer * DISK_LINE_SIZE , disk + (disksector * DISK_LINE_SIZE * 128), 128 * DISK_LINE_SIZE);   // read in one go.
 
 				}
-				else {                  // write
+				else {                  // write to disk
 
 					memcpy(disk + (disksector * DISK_LINE_SIZE * 128), dmem + diskbuffer, 128 * DISK_LINE_SIZE);
 				}
@@ -627,16 +854,24 @@ void main(int argc, char* argv[]) {
 		}
 
 		if (monitorcmd == 1) {
-			//frame_buffer[monitoraddr] = monitordata;
+
+			frame_buffer[monitoraddr] = monitordata;
+
 		}
 
-		if (timerenable) {    
+		if (timerenable) {   
+
 			increment_binary(IO_registers[12], WORD);  
+
 		}
 
-		increment_binary(PC, PC_SIZE);  //  TODO add logic to increment PC here OR from the instruction.
-		increment_binary(IO_registers[8], WORD);
+		if (res1 == 0) {
 
+			increment_binary(PC, PC_SIZE);  // increment if PC wasnt already set, using reserve IO to avoid passing another variable to execute_instruction.
+
+		}
+
+		increment_binary(IO_registers[8], WORD); // clks++
 		tmp_cond++;
 	}
 
@@ -645,15 +880,55 @@ void main(int argc, char* argv[]) {
 
 
 
-	registers[3][WORD] = '\0';              // print result in v0, for debugging.
+	//registers[3][WORD] = '\0';              // print result in v0, for debugging.
 	//printf("\nresult\nsigned binary: %s  |  dec: %d\n", registers[3], signed_binary_strtol(registers[3]));
 
-	disk[128 * DISK_LINE_SIZE] = '\0';
-	printf(" disk = %s\n", disk);
+	//disk[128 * DISK_LINE_SIZE] = '\0';
+	//dmem[128 * DISK_LINE_SIZE] = '\0';
+
+	//printf(" disk = %s\n\n", disk);
+	//printf(" dmem = %s\n",   dmem);
 
 	//dmem[128 + DISK_LINE_SIZE * 128] = '\0';
 	//printf("dmem after disk =  %s", dmem);
 	
+	fetch_IO(IO, IO_registers);
+
+
+	int k;
+	int val;
+	int index = 0;
+
+	char* regout = calloc_and_check( DMEM_LINE_SIZE *( NUM_OF_REGISTERS - 3), sizeof(char));
+	memset(regout + DMEM_LINE_SIZE * (NUM_OF_REGISTERS - 3), '\0', 1);
+
+	for (k = 3; k < NUM_OF_REGISTERS; k++) {
+		
+		val = signed_binary_strtol(registers[k]);
+		dec_to_hex(regout + index, val, DMEM_LINE_SIZE);
+		index += DMEM_LINE_SIZE;
+		
+	}
+
+
+	
+	//writefile(argv[5], DMEM_LINE_SIZE, dmem);
+	//writefile(argv[6], DMEM_LINE_SIZE, regout);
+
+	trace[clks * TRACE_LINE_SIZE] = '\0';  // clks overflow counter?
+	writefile(argv[7], 160, trace);
+
+
+	/*int oi = -69;
+	char lmao[8+1];
+	lmao[8] = '\0';
+	dec_to_hex(lmao, oi, 8);
+
+	printf("negative hex = %s", lmao);*/
+
+
+	registers[1][WORD] = '\0';
+	printf("imm1 neg = %s", registers[1]);
 
 	free(dmem);
 	free(imem);
