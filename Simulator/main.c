@@ -12,12 +12,9 @@
 #define DMEM_LINE_SIZE 8
 #define DISK_LINE_SIZE 8
 
-
-
 #define NUM_OF_INST_FIELDS 7
 #define NUM_OF_REGISTERS 16
 #define NUM_OF_IO_REGISTERS 23
-
 
 #define MEM_SIZE 4096
 #define DISK_SIZE 128 * 128
@@ -104,15 +101,28 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 	return data;
 }
 
-void* readirq2(char* p_fname) {
+/*
+  description:
+	 read irq2 file.
+
+*/
+int readirq2(char* p_fname, int *irq2_up_clocks, int irq2_up_clocks_buffer_size) {
 
 	FILE* fptr;
 
-	int i = 0;
-	int char_read = 0;
 	int irq2_clock;
+	int char_read = 0;
 	int line_buff_size = 128;
+	
+	
+	irq2_up_clocks_buffer_size*=  sizeof(int);   
 
+	if (irq2_up_clocks_buffer_size <= 8) {
+		printf("irq2 buff too small!\n");   //check for suppressing a warning.
+		exit(1);
+	}
+
+	int number_of_clocks = 0;   // number of clocks irq2 is up that were saved.
 	char chunk[5];
 	int chunk_size = sizeof(chunk);
 
@@ -145,24 +155,50 @@ void* readirq2(char* p_fname) {
 		strncpy_s(line + char_read, chunk_size, chunk, chunk_size);
 		char_read += strlen(chunk);
 
+		if (irq2_up_clocks_buffer_size <= number_of_clocks * sizeof(int)) {   // realloc line if too small.
+
+			irq2_up_clocks_buffer_size *= 2;
+
+			char* temp_buffer = realloc(irq2_up_clocks, irq2_up_clocks_buffer_size);
+
+			if (temp_buffer == NULL) {
+				printf("Memory assignment error encountered\nTerminating program...");
+				exit(-1);
+			}
+
+			irq2_up_clocks = temp_buffer;
+		}
+
 
 		if (line[char_read - 1] == '\n') {
 
-			
 			irq2_clock = strtol(line, NULL, 10);
-			printf("line = %s, irq = %d", line, irq2_clock);
+			irq2_up_clocks[number_of_clocks++] = irq2_clock;
+			
+			memset(line, 0, line_buff_size);
+			char_read = 0;
 		}
 
 	}
 
-	fclose(fptr);
+	irq2_clock = strtol(line, NULL, 10);     // last line, no newline char to catch.
+	irq2_up_clocks[number_of_clocks++] = irq2_clock;
 
+	fclose(fptr);
+	free(line);
+
+	return number_of_clocks;
 }
 
 /*
   description:
 	 write data to output file.
 
+	parameters:
+	in p_fname
+	in line_size - length of one line.
+	in data_buffer - data is formatted without seperetors or newlines, i.e for data_buffer = "0000" and line_size = 2,  00  is the output	
+																													    00
 */
 void* writefile(char* p_fname, int line_size, char* data_buffer) {
 
@@ -199,7 +235,6 @@ void* writefile(char* p_fname, int line_size, char* data_buffer) {
 		
 	}
 	
-
 	fclose(fptr);
 	free(line);
 }
@@ -647,7 +682,9 @@ void decode_instruction(char* hex_data, int* field_array) {
 	executes a single assembly instruction.
 
 */
-void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS][WORD + 1], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1], char *dmem, char *PC, int *hw_info,int *PC_set_flag, int *halt_flag) {
+void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS][WORD + 1], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1], char *dmem, char *PC,
+	                     int *hw_info, int *PC_set_flag, int *halt_flag, int* irq_subroutine_flag) {
+						 
 
 	int opcode = instruction_fields_array[0];
 	int rd = instruction_fields_array[1];
@@ -893,6 +930,7 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 		printf("opcode %d, instruction: reti\n", opcode);
 
 		copy_register(PC, IO_R[7], PC_SIZE);
+		*irq_subroutine_flag = 0;
 		*PC_set_flag = 1;
 
 		break;
@@ -954,16 +992,21 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 void main(int argc, char* argv[]) {
 
-	char *imem, *dmem, *disk, *trace, *monitor, *irq2;
+	char *imem, *dmem, *disk, *trace, *monitor;
 	
+
 	imem = readfile(argv[1], IMEM_LINE_SIZE, MEM_SIZE);  // contains data in sequence, imemin[ i * data_size] for the i+1 line start address.
 	dmem = readfile(argv[2], DMEM_LINE_SIZE, MEM_SIZE);  
 	disk = readfile(argv[3], DISK_LINE_SIZE, DISK_SIZE);
-	readirq2(argv[4], 3, 1024);
 
 	trace = calloc_and_check(TRACE_LINE_SIZE * 1024, sizeof(char));
 	monitor = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE, sizeof(char));
 	memset(monitor, '0', MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE);
+
+	int irq2_up_clocks_buffer_size = 4;
+	int* irq2_up_clocks = calloc_and_check(irq2_up_clocks_buffer_size, sizeof(int));
+
+	int num_irq2_up_clocks = readirq2(argv[4], irq2_up_clocks, irq2_up_clocks_buffer_size);
 
 	char PC[PC_SIZE + 1];
 	set_register(PC, 0, PC_SIZE);
@@ -987,10 +1030,12 @@ void main(int argc, char* argv[]) {
 	//-------------
 
 	int irq;
+	int irq_subroutine_flag = 0;
 	int halt_flag = 0;
 	int PC_set_flag = 0;
 	int clock = 1;
 	int disk_read_end = 0;
+	int irq2_up_clocks_index = 0;
 	int hw_info[3] = {0};
 	int hw_firstwrite = 1;
 	int leds_firstwrite = 1;
@@ -1025,7 +1070,7 @@ void main(int argc, char* argv[]) {
 
 	int tmp_cond = 0; // while loop exit condition, temporary for controlling how many instructions are ran.
 	
-	while (tmp_cond != 2) {
+	while (tmp_cond != 140) {
 
 		fetch_IO(IO, IO_registers);
 
@@ -1038,13 +1083,39 @@ void main(int argc, char* argv[]) {
 			set_register(IO_registers[12], 0, WORD);  
 		}
 		
+
+		if (irq2_up_clocks[irq2_up_clocks_index] == clock) {
+
+			set_register(IO_registers[5], 1, WORD);
+			irq2status = 1;
+
+			if (irq2_up_clocks_index < num_irq2_up_clocks) {
+				irq2_up_clocks_index++;
+			}
+		}
+
 		irq = (irq0enable & irq0status) | (irq1enable & irq1status) | (irq2enable & irq2status);        
 		
+		if (irq ) {
+
+			if (irq_subroutine_flag == 0) {
+
+				copy_register(IO_registers[7], PC, WORD);	  // save current PC in irqreturn
+				copy_register(PC, IO_registers[6], PC_SIZE); // set PC to irqhandler address
+				irq_subroutine_flag = 1;
+
+			}
+
+		}
+
 		build_trace(trace, &PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
 
 		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array);
 
-		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC, hw_info, &PC_set_flag, &halt_flag);
+		printf(" \nPC : %d ||\n", strtol(PC, NULL, 2));
+		registers[7][WORD] = '\0';
+		printf("reg 7 = %d\n", signed_binary_strtol(registers[7], WORD));
+		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
 		
 		if (leds != signed_binary_strtol(IO_registers[9], WORD)) {      // if leds register has been changed, write it to leds.txt
 
@@ -1121,6 +1192,7 @@ void main(int argc, char* argv[]) {
 		
 		
 		increment_binary(IO_registers[8], WORD); // clks++
+		set_register(IO_registers[5], 0, WORD);  // irq2status = 0
 		PC_set_flag = 0;
 		clock++;   // software clock
 		tmp_cond++;
