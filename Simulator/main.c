@@ -255,7 +255,7 @@ int num_of_digits(int n) {
 	int temp_n = n;
 	int i;
 
-	while (temp_n != 0) {    // calculating number of digits the decimal clock value is for index incrementation.
+	while (temp_n != 0) {    // calculating number of digits the decimal n value is for index incrementation.
 
 		temp_n /= 10;
 		digit_num++;
@@ -474,11 +474,11 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 	char PC_hex[3];						 // convert PC from binary to 3 digit hex representation.
 	dec_to_hex(PC_hex, PC_int, 3, 0);	 	 //
 
-	int trace_index = TRACE_LINE_SIZE * (clock - 1);
+	int trace_index = TRACE_LINE_SIZE * (clock );
 	char register_hex[8];
 	int i;
 
-	if (*trace_size == clock * TRACE_LINE_SIZE * sizeof(char)) {   // trace buffer realloc, doubling the old buffer size.
+	if (*trace_size == (clock+1) * TRACE_LINE_SIZE * sizeof(char)) {   // trace buffer realloc, doubling the old buffer size.
 
 		// printf(" Reallocating 'trace' buffer.\nCurrent trace : %s || size = %d\n", trace, *trace_size);
 
@@ -539,14 +539,14 @@ void write_hwregtrace(char *fname, int *hw_info, int clock, int *first_operation
 
 	int digit_num = num_of_digits(clock);
 	
-	char register_names[23][21] = { "irq0enable", "irq1enable", "irq2enable", "irq0status", "irq1status", "irq2status", "irq2statusirqhandler", "irqreturn",
+	char register_names[23][21] = { "irq0enable", "irq1enable", "irq2enable", "irq0status", "irq1status", "irq2status", "irqhandler", "irqreturn",
 				  "clks", "leds", "display7seg", "timerenable", "timercurrent", "timermax", "diskcmd", "disksector", "diskbuffer", "diskstatus",
 				  "res1", "res2", "monitoraddr", "monitordata", "monitorcmd" };
 
 
 	char DATA[9];
 	DATA[8] = '\0';
-	dec_to_hex(DATA, hw_info[2], 8, 0);
+	dec_to_hex(DATA, hw_info[2], 8, 1);
 
 	int register_name_length = strlen(register_names[hw_info[0]]);
 
@@ -624,7 +624,7 @@ void write_output(char* fname, int clock, int led_data, int* first_operation) {
 
 	char DATA[9];
 	DATA[8] = '\0';
-	dec_to_hex(DATA, led_data, 8, 0);
+	dec_to_hex(DATA, led_data, 8, 1);
 
 	if (*first_operation == 1) {
 
@@ -936,7 +936,7 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: reti\n", opcode);
 
-		copy_register(PC, IO_R[7], PC_SIZE);
+		copy_register(PC, IO_R[7], WORD);
 		*irq_subroutine_flag = 0;
 		*PC_set_flag = 1;
 
@@ -952,7 +952,7 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 			break;
 		}
 
-		result = IO_R[index];
+		result = signed_binary_strtol(IO_R[index], WORD);
 		set_register(R[rd], result, WORD);
 
 		hw_info[0] = index;  // which register was changed.
@@ -1020,8 +1020,18 @@ void main(int argc, char* argv[]) {
 	char PC[PC_SIZE + 1];
 	set_register(PC, 0, PC_SIZE);
 
-	char registers[NUM_OF_REGISTERS][WORD+1];           // +1 for null character used in debugging prints. TODO
+	char registers[NUM_OF_REGISTERS][WORD+1];// +1 for null character used in debugging prints. TODO
 	char IO_registers[NUM_OF_IO_REGISTERS][WORD + 1];
+	int i;
+
+	for (i = 0; i < NUM_OF_IO_REGISTERS; i++) {
+
+		dec_to_hex(IO_registers[i], 0, WORD, 0);
+		if (i < NUM_OF_REGISTERS)
+			dec_to_hex(registers[i], 0, WORD, 0);
+	}
+
+	
 	int instruction_fields_array[NUM_OF_INST_FIELDS];
 
 	//-------------  initialize decimal value IO registers by name for readability 
@@ -1042,7 +1052,7 @@ void main(int argc, char* argv[]) {
 	int irq_subroutine_flag = 0;
 	int halt_flag = 0;
 	int PC_set_flag = 0;
-	int clock = 1;
+	int clock = 0;
 	int disk_read_end = 0;
 	int irq2_up_clocks_index = 0;
 	int hw_info[3] = {0};
@@ -1079,11 +1089,11 @@ void main(int argc, char* argv[]) {
 
 	int tmp_cond = 0; // while loop exit condition, temporary for controlling how many instructions are ran.
 	
-	while (tmp_cond != 199) {
+	while (tmp_cond != 2048) {
 
 		fetch_IO(IO, IO_registers);
 
-		if (tmp_cond == 99) {
+		if (tmp_cond == 776) {
 			printf("pause\n");
 		}
 
@@ -1096,7 +1106,7 @@ void main(int argc, char* argv[]) {
 			set_register(IO_registers[12], 0, WORD);  
 		}
 		
-		if (irq2_up_clocks[irq2_up_clocks_index] == clock) {
+		if (irq2_up_clocks[irq2_up_clocks_index] == clock - 1) {
 
 			set_register(IO_registers[5], 1, WORD);
 			irq2status = 1;
@@ -1113,6 +1123,8 @@ void main(int argc, char* argv[]) {
 			if (irq_subroutine_flag == 0) {
 
 				copy_register(IO_registers[7], PC, WORD);	  // save current PC in irqreturn
+				IO_registers[7][PC_SIZE] = '\0';
+				printf("irqreturn = %s\n", IO_registers[7]);
 				copy_register(PC, IO_registers[6], PC_SIZE); // set PC to irqhandler address
 				irq_subroutine_flag = 1;
 
@@ -1128,7 +1140,7 @@ void main(int argc, char* argv[]) {
 
 		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
 		registers[7][WORD] = '\0';
-		printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock - 1));
+		printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock));
 
 		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
 		
@@ -1183,14 +1195,13 @@ void main(int argc, char* argv[]) {
 
 		if (monitorcmd == 1) {
 
-			//dec_to_hex(monitor + (monitoraddr * 2), monitordata, 2, 0);
+   			dec_to_hex(monitor + (monitoraddr * 2), monitordata, 2, 0);  // monitor.txt data
 
 			char temp_hex[4];
-			sprintf_s(temp_hex, 3, "%x", monitordata);
-			puts(temp_hex);
-
-			monitoraddr /= 3200;
+			sprintf_s(temp_hex, 3, "%x", monitordata);    //monitor.yuv data
 			monitor_hex[monitoraddr] = temp_hex;
+
+			set_register(IO_registers[22], 0, WORD);
 		}
 
 		if (timerenable) {   
@@ -1255,7 +1266,7 @@ void main(int argc, char* argv[]) {
 
 	}
 
-	trace[(clock - 1) * TRACE_LINE_SIZE] = '\0';  
+	trace[(clock + 1) * TRACE_LINE_SIZE] = '\0';  
 	monitor[MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE]= '\0';
 
 
