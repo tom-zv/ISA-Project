@@ -155,11 +155,11 @@ int readirq2(char* p_fname, int *irq2_up_clocks, int irq2_up_clocks_buffer_size)
 		strncpy_s(line + char_read, chunk_size, chunk, chunk_size);
 		char_read += strlen(chunk);
 
-		if (irq2_up_clocks_buffer_size <= number_of_clocks * sizeof(int)) {   // realloc line if too small.
+		if (irq2_up_clocks_buffer_size <= (int)(number_of_clocks * sizeof(int))) {   // realloc line if too small.
 
 			irq2_up_clocks_buffer_size *= 2;
 
-			char* temp_buffer = realloc(irq2_up_clocks, irq2_up_clocks_buffer_size);
+			int* temp_buffer = realloc(irq2_up_clocks, irq2_up_clocks_buffer_size);
 
 			if (temp_buffer == NULL) {
 				printf("Memory assignment error encountered\nTerminating program...");
@@ -200,7 +200,7 @@ int readirq2(char* p_fname, int *irq2_up_clocks, int irq2_up_clocks_buffer_size)
 	in data_buffer - data is formatted without seperetors or newlines, i.e for data_buffer = "0000" and line_size = 2,  00  is the output	
 																													    00
 */
-void* writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag) {
+void writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag) {
 
 	FILE* fptr;
 	int buffer_index = 0;
@@ -253,7 +253,6 @@ int num_of_digits(int n) {
 
 	int digit_num = 0;
 	int temp_n = n;
-	int i;
 
 	while (temp_n != 0) {    // calculating number of digits the decimal n value is for index incrementation.
 
@@ -1020,11 +1019,11 @@ void main(int argc, char* argv[]) {
 	char PC[PC_SIZE + 1];
 	set_register(PC, 0, PC_SIZE);
 
-	char registers[NUM_OF_REGISTERS][WORD+1];// +1 for null character used in debugging prints. TODO
+	char registers[NUM_OF_REGISTERS][WORD+1];			// +1 for null character used in debugging prints. TODO
 	char IO_registers[NUM_OF_IO_REGISTERS][WORD + 1];
 	int i;
 
-	for (i = 0; i < NUM_OF_IO_REGISTERS; i++) {
+	for (i = 0; i < NUM_OF_IO_REGISTERS; i++) {     // set registers to 0
 
 		dec_to_hex(IO_registers[i], 0, WORD, 0);
 		if (i < NUM_OF_REGISTERS)
@@ -1136,13 +1135,13 @@ void main(int argc, char* argv[]) {
 
 		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array, &registers);
 
-		build_trace(trace, &PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
+		build_trace(trace, PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
 
-		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
 		registers[7][WORD] = '\0';
+		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
 		printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock));
 
-		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
+		execute_instruction(instruction_fields_array, &registers, &IO_registers, dmem, PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
 		
 		if (leds != signed_binary_strtol(IO_registers[9], WORD)) {      // if leds register has been changed, write it to leds.txt
 
@@ -1201,7 +1200,7 @@ void main(int argc, char* argv[]) {
 			sprintf_s(temp_hex, 3, "%x", monitordata);    //monitor.yuv data
 			monitor_hex[monitoraddr] = temp_hex;
 
-			set_register(IO_registers[22], 0, WORD);
+			set_register(IO_registers[22], 0, WORD);	  //monitorcmd == 0
 		}
 
 		if (timerenable) {   
@@ -1235,21 +1234,7 @@ void main(int argc, char* argv[]) {
 	//-----------------------------------------------------------------------------------------------------------------\\
 
 
-
-	//registers[3][WORD] = '\0';              // print result in v0, for debugging.
-	//printf("\nresult\nsigned binary: %s  |  dec: %d\n", registers[3], signed_binary_strtol(registers[3], WORD));
-
-	//disk[128 * DISK_LINE_SIZE] = '\0';
-	//dmem[128 * DISK_LINE_SIZE] = '\0';
-
-	//printf(" disk = %s\n\n", disk);
-	//printf(" dmem = %s\n",   dmem);
-
-	//dmem[128 + DISK_LINE_SIZE * 128] = '\0';
-	//printf("dmem after disk =  %s", dmem);
-	
 	fetch_IO(IO, IO_registers);
-	
 	
 	int k;
 	int val;
