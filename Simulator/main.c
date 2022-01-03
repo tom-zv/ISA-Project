@@ -200,15 +200,18 @@ int readirq2(char* p_fname, int *irq2_up_clocks, int irq2_up_clocks_buffer_size)
 	in data_buffer - data is formatted without seperetors or newlines, i.e for data_buffer = "0000" and line_size = 2,  00  is the output	
 																													    00
 */
-void* writefile(char* p_fname, int line_size, char* data_buffer) {
+void* writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag) {
 
 	FILE* fptr;
 	int buffer_index = 0;
 	int line_num = 0;
 	char* line = calloc_and_check(line_size + 1, sizeof(char));
 
+	if(binary_flag)
+		fopen_s(&fptr, p_fname, "wb");
+	else
+		fopen_s(&fptr, p_fname, "w");
 
-	fopen_s(&fptr, p_fname, "w");
 	if (fptr == NULL) {
 		printf("IO error encountered\nTerminating program...");
 		exit(-1);
@@ -258,6 +261,39 @@ int num_of_digits(int n) {
 	}
 
 	return digit_num;
+}
+
+/*
+  description:
+	implementation of strtol for signed binary.
+
+*/
+int signed_binary_strtol(char* str, int size) {
+
+	if (str[0] == '1') {   // adjusted conversion for negative numbers.
+
+		char* flip_str = calloc_and_check(size + 1, sizeof(char));
+		int i;
+
+		for (i = 0; i < size; i++) {      // flip all bits of the signed representation
+
+			if (str[i] == '0') {
+				flip_str[i] = '1';
+			}
+			else {
+				flip_str[i] = '0';
+			}
+
+		}
+
+		int num = -strtol(flip_str, NULL, 2) - 1;   // strtol of flipped bits, minus one, gives us the correct conversion for signed negative numbers.
+		return num;
+	}
+
+
+	int num = strtol(str, NULL, 2);
+	return num;
+
 }
 
 /*
@@ -334,7 +370,7 @@ int hex_to_dec(char *hex_data, int hex_size, int *hex_index, int signed_flag) {
 		in dec - decimal number to convert.
 		in size - number of digits in hex representation - Padded with zeros
 */
-void dec_to_hex(char* hex, int dec, int size) { 
+void dec_to_hex(char* hex, int dec, int size, int lowercase_flag) { 
 
 	int temp;
 	long long q = dec;
@@ -352,48 +388,19 @@ void dec_to_hex(char* hex, int dec, int size) {
 
 		if (temp < 10)
 			temp = temp + 48; 
-		else
-			temp = temp + 55;
+		else {
+			if(lowercase_flag){
 
+				temp += 32;
+
+			}
+			temp = temp + 55;
+		}
 		hex[size - 1 - j] = temp;
 		q = q / 16;
 
 	}
 	
-	
-}
-
-/*
-  description:
-	implementation of strtol for signed binary.
-
-*/
-int signed_binary_strtol(char *str, int size) {
-	
-	if (str[0] == '1') {   // adjusted conversion for negative numbers.
-
-		char *flip_str = calloc_and_check(size + 1,sizeof(char));
-		int i;
-
-		for (i = 0; i < size; i++) {      // flip all bits of the signed representation
-
-			if (str[i] == '0') {
-				flip_str[i] = '1';
-			}							 
-			else {                       
-				flip_str[i] = '0';
-			}
-
-		}
-
-		int num = -strtol(flip_str, NULL, 2) - 1 ;   // strtol of flipped bits, minus one, gives us the correct conversion for signed negative numbers.
-		return num;
-	}
-
-
-	int num = strtol(str, NULL, 2);
-	return num;
-
 }
 
 /*
@@ -463,7 +470,7 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 
 	int PC_int = strtol(PC, NULL, 2);    //
 	char PC_hex[3];						 // convert PC from binary to 3 digit hex representation.
-	dec_to_hex(PC_hex, PC_int, 3);	 	 //
+	dec_to_hex(PC_hex, PC_int, 3, 0);	 	 //
 
 	int trace_index = TRACE_LINE_SIZE * (clock - 1);
 	char register_hex[8];
@@ -487,7 +494,6 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 
 	}
 
-
 	memcpy(trace + trace_index, PC_hex, 3);
 	trace_index += 3;
 	memset(trace + trace_index, ' ', 1);
@@ -501,7 +507,7 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 	for (i = 0; i < NUM_OF_REGISTERS; i++) {
 
 		int register_int = signed_binary_strtol(R[i], WORD);       // convert registers from binary to 8 digit hex representation.
-		dec_to_hex(register_hex, register_int, 8);	   //
+		dec_to_hex(register_hex, register_int, 8, 1);	   //
 
 		memcpy(trace + trace_index, register_hex, DMEM_LINE_SIZE);
 		trace_index += DMEM_LINE_SIZE;
@@ -510,7 +516,6 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 			memset(trace + trace_index, ' ', 1);
 			trace_index += 1;
 		}
-
 
 	}
 
@@ -539,7 +544,7 @@ void write_hwregtrace(char *fname, int *hw_info, int clock, int *first_operation
 
 	char DATA[9];
 	DATA[8] = '\0';
-	dec_to_hex(DATA, hw_info[2], 8);
+	dec_to_hex(DATA, hw_info[2], 8, 0);
 
 	int register_name_length = strlen(register_names[hw_info[0]]);
 
@@ -617,7 +622,7 @@ void write_output(char* fname, int clock, int led_data, int* first_operation) {
 
 	char DATA[9];
 	DATA[8] = '\0';
-	dec_to_hex(DATA, led_data, 8);
+	dec_to_hex(DATA, led_data, 8, 0);
 
 	if (*first_operation == 1) {
 
@@ -659,7 +664,7 @@ void fetch_IO(int *IO[], char IO_R[NUM_OF_IO_REGISTERS][WORD + 1]) {
 	decodes the given instruction from hex to dec, storing the results in the given array of instruction fields.
 
 */
-void decode_instruction(char* hex_data, int* field_array) {
+void decode_instruction(char* hex_data, int* field_array, char registers[NUM_OF_REGISTERS][WORD + 1]) {
 
 	int hex_index = 0;
 
@@ -672,6 +677,9 @@ void decode_instruction(char* hex_data, int* field_array) {
 	int imm2 = hex_to_dec(hex_data + hex_index, IMM_INSTRUCTION_SIZE, &hex_index, 1);
 
 	*field_array++ = opcode; *field_array++ = rd; *field_array++ = rs; *field_array++ = rt; *field_array++ = rm; *field_array++ = imm1; *field_array++ = imm2;
+
+	set_register(registers[1], imm1, WORD);		//  store imm1 and imm2 in their respective registers.
+	set_register(registers[2], imm2, WORD);
 
 	//printf(" %d | %d | %d | %d | %d | %d | %d |\n", opcode, rd, rs, rt, rm, imm1, imm2);
 }
@@ -693,9 +701,6 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 	int rm = instruction_fields_array[4];		//
 	int imm1 = instruction_fields_array[5];
 	int imm2 = instruction_fields_array[6];
-
-	set_register(R[1], imm1, WORD);		//  store imm1 and imm2 in their respective registers.
-	set_register(R[2], imm2, WORD);    //
 
 	int result;
 	int index;
@@ -918,7 +923,7 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 		result = signed_binary_strtol(R[rm], WORD) + signed_binary_strtol(R[rd], WORD);
 		
 		char hex[DMEM_LINE_SIZE];
-		dec_to_hex(hex, result, DMEM_LINE_SIZE);
+		dec_to_hex(hex, result, DMEM_LINE_SIZE, 0);
 		memcpy(dmem + DMEM_LINE_SIZE * index, hex, DMEM_LINE_SIZE);
 
 
@@ -1004,9 +1009,9 @@ void main(int argc, char* argv[]) {
 	memset(monitor, '0', MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE);
 
 	int irq2_up_clocks_buffer_size = 4;
-	int* irq2_up_clocks = calloc_and_check(irq2_up_clocks_buffer_size, sizeof(int));
+	int* irq2_up_clocks = calloc_and_check(irq2_up_clocks_buffer_size, sizeof(int));   // array containing clock cycles during which irq2status = 1;
 
-	int num_irq2_up_clocks = readirq2(argv[4], irq2_up_clocks, irq2_up_clocks_buffer_size);
+	int num_irq2_up_clocks = readirq2(argv[4], irq2_up_clocks, irq2_up_clocks_buffer_size);  
 
 	char PC[PC_SIZE + 1];
 	set_register(PC, 0, PC_SIZE);
@@ -1070,9 +1075,13 @@ void main(int argc, char* argv[]) {
 
 	int tmp_cond = 0; // while loop exit condition, temporary for controlling how many instructions are ran.
 	
-	while (tmp_cond != 140) {
+	while (tmp_cond != 199) {
 
 		fetch_IO(IO, IO_registers);
+
+		if (tmp_cond == 99) {
+			printf("pause\n");
+		}
 
 		if (timercurrent == timermax) {
 
@@ -1083,7 +1092,6 @@ void main(int argc, char* argv[]) {
 			set_register(IO_registers[12], 0, WORD);  
 		}
 		
-
 		if (irq2_up_clocks[irq2_up_clocks_index] == clock) {
 
 			set_register(IO_registers[5], 1, WORD);
@@ -1096,7 +1104,7 @@ void main(int argc, char* argv[]) {
 
 		irq = (irq0enable & irq0status) | (irq1enable & irq1status) | (irq2enable & irq2status);        
 		
-		if (irq ) {
+		if (irq) {
 
 			if (irq_subroutine_flag == 0) {
 
@@ -1108,13 +1116,16 @@ void main(int argc, char* argv[]) {
 
 		}
 
+		   // update imm1 imm2 in trace.
+
+		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array, &registers);
+
 		build_trace(trace, &PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
 
-		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array);
-
-		printf(" \nPC : %d ||\n", strtol(PC, NULL, 2));
+		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
 		registers[7][WORD] = '\0';
-		printf("reg 7 = %d\n", signed_binary_strtol(registers[7], WORD));
+		printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock - 1));
+
 		execute_instruction(&instruction_fields_array, &registers, &IO_registers, dmem, &PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
 		
 		if (leds != signed_binary_strtol(IO_registers[9], WORD)) {      // if leds register has been changed, write it to leds.txt
@@ -1168,7 +1179,7 @@ void main(int argc, char* argv[]) {
 
 		if (monitorcmd == 1) {
 
-			dec_to_hex(monitor + (monitoraddr * 2), monitordata, 2);
+			//dec_to_hex(monitor + (monitoraddr * 2), monitordata, 2, 0);
 
 		}
 
@@ -1194,6 +1205,7 @@ void main(int argc, char* argv[]) {
 		increment_binary(IO_registers[8], WORD); // clks++
 		set_register(IO_registers[5], 0, WORD);  // irq2status = 0
 		PC_set_flag = 0;
+
 		clock++;   // software clock
 		tmp_cond++;
 	}
@@ -1218,7 +1230,6 @@ void main(int argc, char* argv[]) {
 	fetch_IO(IO, IO_registers);
 	
 	
-
 	int k;
 	int val;
 	int index = 0;
@@ -1229,7 +1240,7 @@ void main(int argc, char* argv[]) {
 	for (k = 3; k < NUM_OF_REGISTERS; k++) {
 
 		val = signed_binary_strtol(registers[k], WORD);
-		dec_to_hex(regout + index, val, DMEM_LINE_SIZE);
+		dec_to_hex(regout + index, val, DMEM_LINE_SIZE, 0);
 		index += DMEM_LINE_SIZE;
 
 	}
@@ -1242,12 +1253,13 @@ void main(int argc, char* argv[]) {
 	sprintf_s(clock_output, digit_num + 1, "%d", clock);
 	
 
-	writefile(argv[5], DMEM_LINE_SIZE, dmem);
-	writefile(argv[6], DMEM_LINE_SIZE, regout);
-	writefile(argv[7], TRACE_LINE_SIZE, trace);
-	writefile(argv[9], digit_num, clock_output);
-	writefile(argv[12], DISK_LINE_SIZE, disk);
-	writefile(argv[13], MONITOR_LINE_SIZE, monitor);
+	writefile(argv[5], DMEM_LINE_SIZE, dmem, 0);
+	writefile(argv[6], DMEM_LINE_SIZE, regout, 0);
+	writefile(argv[7], TRACE_LINE_SIZE, trace, 0);
+	writefile(argv[9], digit_num, clock_output, 0);
+	writefile(argv[12], DISK_LINE_SIZE, disk, 0);
+	writefile(argv[13], MONITOR_LINE_SIZE, monitor, 0);
+	writefile(argv[14], MONITOR_LINE_SIZE, monitor, 1);
 
 	free(imem);
 	free(dmem);
