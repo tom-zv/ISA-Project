@@ -19,7 +19,7 @@
 #define MEM_SIZE 4096
 #define DISK_SIZE 128 * 128
 #define MONITOR_BUFF_SIZE 256
-#define MAX_LINES 16385
+#define MAX_LINES 65536
 
 #define PC_SIZE 12
 #define WORD 32
@@ -217,7 +217,6 @@ void* writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag
 		exit(-1);
 	}
 
-
 	while (line_num < MAX_LINES) {      // max size to prevent infinite loop if null character cant be found.
 
 		memcpy(line, data_buffer + buffer_index, line_size);
@@ -230,7 +229,10 @@ void* writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag
 			fprintf(fptr, "%s\n", line);
 		}
 		else {
-			fprintf(fptr, "%s", line);
+			if (binary_flag)
+				fwrite(line, sizeof(char), buffer_index, fptr);
+			else
+				fprintf(fptr, "%s", line);
 			break;
 		}
 		
@@ -997,16 +999,18 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 void main(int argc, char* argv[]) {
 
-	char *imem, *dmem, *disk, *trace, *monitor;
-	
+	char *imem, *dmem, *disk, *trace, *monitor, *monitor_hex;
 
 	imem = readfile(argv[1], IMEM_LINE_SIZE, MEM_SIZE);  // contains data in sequence, imemin[ i * data_size] for the i+1 line start address.
 	dmem = readfile(argv[2], DMEM_LINE_SIZE, MEM_SIZE);  
 	disk = readfile(argv[3], DISK_LINE_SIZE, DISK_SIZE);
 
 	trace = calloc_and_check(TRACE_LINE_SIZE * 1024, sizeof(char));
-	monitor = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE, sizeof(char));
+	monitor = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE + 1, sizeof(char));
 	memset(monitor, '0', MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE);
+
+	monitor_hex = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE + 1, sizeof(char));
+	memset(monitor_hex, 0x00, MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE);
 
 	int irq2_up_clocks_buffer_size = 4;
 	int* irq2_up_clocks = calloc_and_check(irq2_up_clocks_buffer_size, sizeof(int));   // array containing clock cycles during which irq2status = 1;
@@ -1181,6 +1185,12 @@ void main(int argc, char* argv[]) {
 
 			//dec_to_hex(monitor + (monitoraddr * 2), monitordata, 2, 0);
 
+			char temp_hex[4];
+			sprintf_s(temp_hex, 3, "%x", monitordata);
+			puts(temp_hex);
+
+			monitoraddr /= 3200;
+			monitor_hex[monitoraddr] = temp_hex;
 		}
 
 		if (timerenable) {   
@@ -1246,6 +1256,7 @@ void main(int argc, char* argv[]) {
 	}
 
 	trace[(clock - 1) * TRACE_LINE_SIZE] = '\0';  
+	monitor[MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE]= '\0';
 
 
 	int digit_num = num_of_digits(clock);
@@ -1259,7 +1270,7 @@ void main(int argc, char* argv[]) {
 	writefile(argv[9], digit_num, clock_output, 0);
 	writefile(argv[12], DISK_LINE_SIZE, disk, 0);
 	writefile(argv[13], MONITOR_LINE_SIZE, monitor, 0);
-	writefile(argv[14], MONITOR_LINE_SIZE, monitor, 1);
+	writefile(argv[14], MAX_LINES, monitor_hex, 1);
 
 	free(imem);
 	free(dmem);
