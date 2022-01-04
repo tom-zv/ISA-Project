@@ -6,7 +6,9 @@
 #include "tokenizer.h"
 #include "hash_table.h"
 
-
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 #define MAX_LINE_LENGTH 500
 
 int isDecimal(char *label) {
@@ -236,7 +238,6 @@ int islabel(char *label) {
     return (!isHexdecimal(label)) && (!isDecimal(label));
 }
 
-
 /*
   description:
 	decimal to digit hex, stored in indicated array.
@@ -254,8 +255,7 @@ void dec_to_hex(char *hex, int dec, int size) {
 
     if (q < 0) {              // Signed representation for negative numbers.
 
-        q = pow(2, ((double) size * 4)) +
-            q;              // 2^bits + negative number ran through an unsigned conversion equals the signed conversion.
+        q = pow(2, ((double) size * 4)) +q;              // 2^bits + negative number ran through an unsigned conversion equals the signed conversion.
 
     }
 
@@ -349,10 +349,16 @@ char *return_label(char *imm1, hash_table_t *hash_table) {
         }
         else if (islabel(imm1)) {
             // Find hash address for a label and put in an immediate
+
             char *address = hash_find(hash_table, imm1, strlen(imm1) + 1);
             int check = *address;
-            dec_to_hex(address,check,3);
-            return address;
+
+            char  *temp_address;        
+            temp_address = calloc_and_check(12, sizeof(char));
+
+            dec_to_hex(temp_address, check, 3);
+            return temp_address;
+
         } else {
             imm1 += 2;
             return imm1;

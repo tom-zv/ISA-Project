@@ -21,7 +21,7 @@
 #define MONITOR_BUFF_SIZE 256
 #define MAX_LINES 65536
 
-#define PC_SIZE 12
+#define PC_SIZE 12 
 #define WORD 32
 
 
@@ -467,7 +467,7 @@ void increment_binary(char* binary, int size) {
 	constructs the trace for the current clock.
 
 */
-void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTERS][WORD + 1], int *trace_size, int clock) {
+void* build_trace(char** trace, char* PC, char* instruction, char R[NUM_OF_REGISTERS][WORD + 1], int *trace_size, int clock) {
 
 	int PC_int = strtol(PC, NULL, 2);    //
 	char PC_hex[3];						 // convert PC from binary to 3 digit hex representation.
@@ -477,13 +477,14 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 	char register_hex[8];
 	int i;
 
-	if (*trace_size == (clock+1) * TRACE_LINE_SIZE * sizeof(char)) {   // trace buffer realloc, doubling the old buffer size.
+	if (*trace_size == (clock+2) * TRACE_LINE_SIZE * sizeof(char)) {   // trace buffer realloc, doubling the old buffer size.
 
 		// printf(" Reallocating 'trace' buffer.\nCurrent trace : %s || size = %d\n", trace, *trace_size);
 
 
 		*trace_size *= 2;
-		char* temp_buffer = realloc(trace, *trace_size);
+		char* temp_buffer = realloc(*trace, *trace_size);
+		memset(temp_buffer + *trace_size / 2, 0, *trace_size / 2);
 
 
 		if (temp_buffer == NULL) {
@@ -491,18 +492,18 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 			exit(-1);
 		}
 
-		trace = temp_buffer;
+		*trace = temp_buffer;
 
 	}
 
-	memcpy(trace + trace_index, PC_hex, 3);
+	memcpy(*trace + trace_index, PC_hex, 3);
 	trace_index += 3;
-	memset(trace + trace_index, ' ', 1);
+	memset(*trace + trace_index, ' ', 1);
 	trace_index += 1;
 
-	memcpy(trace + trace_index, instruction, IMEM_LINE_SIZE);
+	memcpy(*trace + trace_index, instruction, IMEM_LINE_SIZE);
 	trace_index += IMEM_LINE_SIZE;
-	memset(trace + trace_index, ' ', 1);
+	memset(*trace + trace_index, ' ', 1);
 	trace_index += 1;
 
 	for (i = 0; i < NUM_OF_REGISTERS; i++) {
@@ -510,16 +511,17 @@ void build_trace(char* trace, char* PC, char* instruction, char R[NUM_OF_REGISTE
 		int register_int = signed_binary_strtol(R[i], WORD);       // convert registers from binary to 8 digit hex representation.
 		dec_to_hex(register_hex, register_int, 8, 1);	   //
 
-		memcpy(trace + trace_index, register_hex, DMEM_LINE_SIZE);
+		memcpy(*trace + trace_index, register_hex, DMEM_LINE_SIZE);
 		trace_index += DMEM_LINE_SIZE;
 
 		if (i != NUM_OF_REGISTERS - 1) {          // if not on last register, add whitespace.
-			memset(trace + trace_index, ' ', 1);
+			memset(*trace + trace_index, ' ', 1);
 			trace_index += 1;
 		}
 
 	}
 
+	return *trace;
 }
 
 /*
@@ -998,13 +1000,18 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 void main(int argc, char* argv[]) {
 
+	if (argc != 15) {
+		printf("Incorrect number of arguments");
+		exit(1);
+	}
+
 	char *imem, *dmem, *disk, *trace, *monitor, *monitor_hex;
 
 	imem = readfile(argv[1], IMEM_LINE_SIZE, MEM_SIZE);  // contains data in sequence, imemin[ i * data_size] for the i+1 line start address.
 	dmem = readfile(argv[2], DMEM_LINE_SIZE, MEM_SIZE);  
 	disk = readfile(argv[3], DISK_LINE_SIZE, DISK_SIZE);
 
-	trace = calloc_and_check(TRACE_LINE_SIZE * 1024, sizeof(char));
+	trace = calloc_and_check(TRACE_LINE_SIZE * 4, sizeof(char));
 	monitor = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE + 1, sizeof(char));
 	memset(monitor, '0', MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE);
 
@@ -1058,7 +1065,7 @@ void main(int argc, char* argv[]) {
 	int hw_firstwrite = 1;
 	int leds_firstwrite = 1;
 	int dis7seg_firstwrite = 1;
-	int trace_size = 1024 * TRACE_LINE_SIZE;     
+	int trace_size = 4 * TRACE_LINE_SIZE;     
 
 
 	//-------------------------------------------------------------------------------------       MANUAL ASSIGNMENT 
@@ -1088,13 +1095,9 @@ void main(int argc, char* argv[]) {
 
 	int tmp_cond = 0; // while loop exit condition, temporary for controlling how many instructions are ran.
 	
-	while (tmp_cond != 2048) {
+	while (!halt_flag ) {
 
 		fetch_IO(IO, IO_registers);
-
-		if (tmp_cond == 776) {
-			printf("pause\n");
-		}
 
 		if (timercurrent == timermax) {
 
@@ -1131,11 +1134,14 @@ void main(int argc, char* argv[]) {
 
 		}
 
-		   // update imm1 imm2 in trace.
+		   
+		if (clock == 11) {
+			printf("\n\n pause \n\n");
+		}
 
 		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array, &registers);
 
-		build_trace(trace, PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
+		build_trace(&trace, PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
 
 		registers[7][WORD] = '\0';
 		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
@@ -1227,6 +1233,11 @@ void main(int argc, char* argv[]) {
 		PC_set_flag = 0;
 
 		clock++;   // software clock
+
+		if (tmp_cond == 126 ) {
+			printf("pause");
+			break;
+		}
 		tmp_cond++;
 	}
 
