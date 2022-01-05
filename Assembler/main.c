@@ -220,7 +220,7 @@ void write_mem_file(char *Mem, char *data, int line_num) {
     while (fgets(mem_line, 10, fptr) != NULL) {
         count++;
         /* If current mem_line is mem_line to replace */
-        if (count == line_num) {
+        if (count == line_num+1) {
             replaced = 1;
             fputs(data, fcpy);
             fputs("\n", fcpy);
@@ -233,7 +233,7 @@ void write_mem_file(char *Mem, char *data, int line_num) {
     }
     if (!replaced) {
         mem_line="00000000";
-        while (count < line_num-1) {
+        while (count < line_num) {
             fputs(mem_line, fcpy);
             fputs("\n", fcpy);
             count++;
@@ -418,11 +418,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
         while (1) {//words
             token = parse_token(token_pointer, " \n\t$,", &token_pointer, NULL);
             /* blank line or comment begins here. go to the next line */
-            if (token == NULL) {
-                free(token);
-                break;
-            }
-            if (*token == '#') {
+            if (token == NULL || *token == '#') {
                 instruction_count++;
                 free(token);
                 break;
