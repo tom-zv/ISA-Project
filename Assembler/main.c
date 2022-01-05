@@ -201,37 +201,57 @@ void *calloc_and_check(size_t count, size_t elem_size) {
 																													    00
 */
 
-void write_mem_file(FILE *Mem, char *data, int line_num) {
+void write_mem_file(char *Mem, char *data, int line_num) {
 
-    FILE *fptr = Mem;
-    char *mem_line= calloc_and_check(9,sizeof(char));
+    //FILE *fptr = Mem;
+    FILE *fptr=NULL;
+    fptr = fopen(Mem, "r");
+    FILE *fcpy=NULL;
+    fcpy = fopen("cpy.txt", "w+");
+    if (fptr == NULL) {
+        printf("Memory file could not opened.");
+        exit(1);
+    }
+    //
+    char *mem_line = calloc_and_check(10,sizeof(char));
     //memset(mem_line, 0, sizeof mem_line);
     int replaced = 0;
     int count = 0;
-    while ((fgets(mem_line, 9, fptr)) != NULL) {
+    while (fgets(mem_line, 10, fptr) != NULL) {
         count++;
-
         /* If current mem_line is mem_line to replace */
         if (count == line_num) {
             replaced = 1;
-            fputs(data, fptr);
-            fflush(Mem);
-        } else {
-            fputs(mem_line, fptr);
-            fflush(Mem);
+            fputs(data, fcpy);
+            fputs("\n", fcpy);
         }
+        else
+        {
+            fputs(mem_line, fcpy);
+        }
+
     }
     if (!replaced) {
         mem_line="00000000";
-        while (count < line_num - 1) {
-            fprintf(fptr, "%s\n", mem_line);
-            fflush(Mem);
+        while (count < line_num-1) {
+            fputs(mem_line, fcpy);
+            fputs("\n", fcpy);
             count++;
         }
-        fprintf(fptr, "%s", data);
-        fflush(Mem);
-        //fseek(Mem, 0, SEEK_SET);  // set file pointer to 0
+        fputs(data, fcpy);
+        fputs("\n", fcpy);
     }
+    fclose(fptr);
+    fseek(fcpy, 0, SEEK_SET);
+    fptr=NULL;
+    fptr = fopen(Mem, "w");
+    mem_line = calloc_and_check(10,sizeof(char));
+    while (fgets(mem_line, 10, fcpy) != NULL) {
+        fputs(mem_line, fptr);
+    }
+    fclose(fptr);
+    fclose(fcpy);
+    remove("cpy.txt");
     //free(fptr);
 }
 
@@ -369,7 +389,7 @@ char *return_label(char *imm1, hash_table_t *hash_table) {
 }
 
 
-void word_instruction(char *address, char *value, FILE *Mem) {
+void word_instruction(char *address, char *value, char *Mem) {
     char *value_hex;
     value_hex = calloc_and_check(9,sizeof(char));
     if (isDecimal(value)) {
@@ -386,7 +406,7 @@ void word_instruction(char *address, char *value, FILE *Mem) {
     write_mem_file(Mem, value_hex, value_address);
 }
 
-void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, FILE *Mem) {
+void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem) {
     char *token_pointer, *token = NULL;
     int instruction_count = 1;
     char line[MAX_LINE_LENGTH + 1];
@@ -583,6 +603,7 @@ int main(int argc, char *argv[]) {
             printf("Memory file could not opened.");
             exit(1);
         }
+        fclose(Mem);
 
         // Sort the array using qsort for faster search
         qsort(instructions, inst_len, sizeof(char *), string_comp);
@@ -592,17 +613,17 @@ int main(int argc, char *argv[]) {
 
         // Parse in passes
         int passNumber = 1;
-        parser(In, passNumber, hash_table, Out, Mem);
+        parser(In, passNumber, hash_table, Out, argv[3]);
 
         // Rewind input file & start pass 2
         rewind(In);
         passNumber = 2;
-        parser(In, passNumber, hash_table, Out, Mem);
+        parser(In, passNumber, hash_table, Out, argv[3]);
 
         // Close files
         fclose(In);
         fclose(Out);
-        fclose(Mem);
+        //
 
         exit(0);
 
