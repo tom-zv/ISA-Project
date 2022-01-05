@@ -419,7 +419,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
             line[i] = tolower(line[i]);
         }
         // 0 in the end of the line
-        line[MAX_LINE_LENGTH] = 0;
+        line[MAX_LINE_LENGTH] = '\0';
         token_pointer = line;
 
         /* parse the tokens within the line */
@@ -492,6 +492,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                     }
                     // Keeps a reference to which register has been parsed for storage
                     int count = 0;
+                    char *tmp = strrchr(inst_ptr, ' ') + 1;
                     while (1) {
 
                         reg = parse_token(inst_ptr, " $,\n\t", &inst_ptr, NULL);
@@ -503,6 +504,9 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                         strcpy(reg_store[count], reg);
                         count++;
                         free(reg);
+                    }
+                    if(count != 6){
+                        strcpy(reg_store[count], tmp);
                     }
 
                     // Send reg_store for output
@@ -531,16 +535,16 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                         printf( "Out of memory\n");
                         exit(1);
                     }
-                    reg_store[1] = malloc(10 * sizeof(char));
+                    reg_store[1] = malloc(12 * sizeof(char));
                     if (reg_store[1] == NULL) {
                         printf("Out of memory\n");
                         exit(1);
                     }
                     // Keeps a reference to which register has been parsed for storage
                     int count = 0;
+                    char *tmp = strrchr(inst_ptr, ' ') + 1;
                     while (1) {
-
-                        reg = parse_token(inst_ptr, " $,\n\t", &inst_ptr, NULL);
+                        reg = parse_token(inst_ptr, " $,\n\t\0", &inst_ptr, NULL);
 
                         if (reg == NULL || *reg == '#') {
                             break;
@@ -549,6 +553,9 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                         strcpy(reg_store[count], reg);
                         count++;
                         free(reg);
+                    }
+                    if(count != 2){
+                        strcpy(reg_store[count], tmp);
                     }
 
                     // Send reg_store for mem
