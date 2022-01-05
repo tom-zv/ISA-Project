@@ -33,7 +33,3 @@ rtn:
     lw $s0, $sp, $imm2, $zero, 0, 3			    # restore $s0
     add $sp, $sp, $imm2, $zero, 0, 4
     beq $zero, $zero, $zero, $ra, 0, 0          # real return
-
-#for testing
-.word 0x100 3
-.word 0x101 2
