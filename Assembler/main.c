@@ -327,7 +327,6 @@ char *check_imm_and_return(char *imm, hash_table_t *hash_table) {
 //function that take parse instruction and printing it in hex at the out file
 void rtype_instruction(char *instruction, char *rd, char *rs, char *rt, char *rm, char *imm1, char *imm2, FILE *Out,
                        hash_table_t *hash_table) {
-    int count = 0;
     char *opcode = NULL;
     // Set the instruction bits
     for (int i = 0; rMap[i].name != NULL; i++) {
