@@ -928,8 +928,6 @@ void execute_instruction(int *instruction_fields_array, char R[NUM_OF_REGISTERS]
 
 		printf("opcode %d, instruction: sw\n", opcode);
 
-
-
 		index = signed_binary_strtol(R[rs], WORD) + signed_binary_strtol(R[rt], WORD);
 
 		if (index < 0) {
@@ -1153,12 +1151,20 @@ void main(int argc, char* argv[]) {
 
 		build_trace(&trace, PC, imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, &registers, &trace_size, clock);
 
-		registers[7][WORD] = '\0';
-		printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
-		printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock));
+		//registers[7][WORD] = '\0';
+		//printf(" \nPC : %d || clock %d\n", strtol(PC, NULL, 2),clock);
+		//printf("TRACE : %s\n", trace + TRACE_LINE_SIZE * (clock));
 
 		execute_instruction(instruction_fields_array, &registers, &IO_registers, dmem, PC, hw_info, &PC_set_flag, &halt_flag, &irq_subroutine_flag);
 		
+		if ((clock - 4) % 27 == 0) {
+			printf("\n");
+		}
+
+		if (signed_binary_strtol(PC, PC_SIZE) == 21) {
+			printf("bne\n");
+		}
+
 		if (leds != signed_binary_strtol(IO_registers[9], WORD)) {      // if leds register has been changed, write it to leds.txt
 
 			write_leds(argv[10], clock, signed_binary_strtol(IO_registers[9],WORD), &leds_firstwrite);
@@ -1280,7 +1286,6 @@ void main(int argc, char* argv[]) {
 	char* clock_output = calloc_and_check(digit_num + 1, sizeof(char));
 	sprintf_s(clock_output, digit_num + 1, "%d", clock);
 	
-
 	writefile(argv[5], DMEM_LINE_SIZE, dmem, 0);
 	writefile(argv[6], DMEM_LINE_SIZE, regout, 0);
 	writefile(argv[7], TRACE_LINE_SIZE, trace, 0);

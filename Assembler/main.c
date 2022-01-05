@@ -418,7 +418,11 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
         while (1) {//words
             token = parse_token(token_pointer, " \n\t$,", &token_pointer, NULL);
             /* blank line or comment begins here. go to the next line */
-            if (token == NULL || *token == '#') {
+            if (token == NULL) {
+                free(token);
+                break;
+            }
+            if (*token == '#') {
                 instruction_count++;
                 free(token);
                 break;
