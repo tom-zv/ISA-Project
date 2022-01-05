@@ -223,13 +223,14 @@ void write_mem_file(FILE *Mem, char *data, int line_num) {
     }
     if (!replaced) {
         mem_line="00000000";
-        while (count < line_num) {
+        while (count < line_num - 1) {
             fprintf(fptr, "%s\n", mem_line);
             fflush(Mem);
             count++;
         }
         fprintf(fptr, "%s", data);
         fflush(Mem);
+        //fseek(Mem, 0, SEEK_SET);  // set file pointer to 0
     }
     //free(fptr);
 }

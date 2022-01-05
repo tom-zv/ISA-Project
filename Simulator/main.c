@@ -66,6 +66,7 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 
 	while (fgets(p_line_buffer, line_size + 2, fptr) != NULL) {
 
+
 		if (i % MEM_SIZE == 0 && i != 0) {
 
 			data_size += MEM_SIZE;
@@ -81,6 +82,10 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 
 		//p_line_buffer[strcspn(p_line_buffer, "\n")] = 0;
 
+		if (p_line_buffer[0] == '\n') {
+			break;                          //dont include empty lines
+
+		}
 		memcpy(data + i * line_size, p_line_buffer, line_size);
 
 		//printf("data = %s  line = %s\n", data,p_line_buffer);
@@ -96,8 +101,8 @@ void* readfile(char* p_fname, int line_size, int data_size) {
 
 	//data[(i-1) * line_size ] =   'F';    /// init with calloc for zeroed arrays. manually add '\0' when accessing file 
 	//data[(i-1) * line_size +1] = 'N';
-	fclose(fptr);
 
+	fclose(fptr);
 	return data;
 }
 
@@ -152,6 +157,9 @@ int readirq2(char* p_fname, int *irq2_up_clocks, int irq2_up_clocks_buffer_size)
 			line = temp_buffer;
 		}
 
+		if (chunk[0] == '\n') {  // reached empty line.
+			break;            
+		}
 		strncpy_s(line + char_read, chunk_size, chunk, chunk_size);
 		char_read += strlen(chunk);
 
@@ -251,6 +259,11 @@ void writefile(char* p_fname, int line_size, char* data_buffer, int binary_flag)
 */
 int num_of_digits(int n) {
 
+	if (n == 0) {
+		return 1;
+	}
+
+	
 	int digit_num = 0;
 	int temp_n = n;
 
@@ -1011,7 +1024,7 @@ void main(int argc, char* argv[]) {
 	dmem = readfile(argv[2], DMEM_LINE_SIZE, MEM_SIZE);  
 	disk = readfile(argv[3], DISK_LINE_SIZE, DISK_SIZE);
 
-	trace = calloc_and_check(TRACE_LINE_SIZE * 4, sizeof(char));
+	trace = calloc_and_check(TRACE_LINE_SIZE * 1024, sizeof(char));
 	monitor = calloc_and_check(MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE + 1, sizeof(char));
 	memset(monitor, '0', MONITOR_BUFF_SIZE * MONITOR_BUFF_SIZE * MONITOR_LINE_SIZE);
 
@@ -1065,7 +1078,7 @@ void main(int argc, char* argv[]) {
 	int hw_firstwrite = 1;
 	int leds_firstwrite = 1;
 	int dis7seg_firstwrite = 1;
-	int trace_size = 4 * TRACE_LINE_SIZE;     
+	int trace_size = 1024 * TRACE_LINE_SIZE;     
 
 
 	//-------------------------------------------------------------------------------------       MANUAL ASSIGNMENT 
@@ -1135,9 +1148,6 @@ void main(int argc, char* argv[]) {
 		}
 
 		   
-		if (clock == 11) {
-			printf("\n\n pause \n\n");
-		}
 
 		decode_instruction(imem + strtol(PC, NULL, 2) * IMEM_LINE_SIZE, instruction_fields_array, &registers);
 
@@ -1179,7 +1189,7 @@ void main(int argc, char* argv[]) {
 				}
 				else {                  // write to disk
 
-					memcpy(disk + (disksector * DISK_LINE_SIZE * 128), dmem + diskbuffer, 128 * DISK_LINE_SIZE);
+					memcpy(disk + (disksector * DISK_LINE_SIZE * 128), dmem + diskbuffer * DMEM_LINE_SIZE, 128 * DISK_LINE_SIZE);
 				}
 
 				set_register(IO_registers[17], 1, WORD); // diskstatus = 1
@@ -1234,9 +1244,9 @@ void main(int argc, char* argv[]) {
 
 		clock++;   // software clock
 
-		if (tmp_cond == 126 ) {
+		if (tmp_cond == 1022 ) {
 			printf("pause");
-			break;
+
 		}
 		tmp_cond++;
 	}

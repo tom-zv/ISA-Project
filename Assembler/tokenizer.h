@@ -40,7 +40,7 @@ static inline char *parse_token(char *in_str, char *delim, char **out_str, char 
   
   /* Get end of token */
   tptr = strpbrk(ptr, delim);
-  if (tptr == NULL) return(NULL);
+  if (tptr == NULL) return(NULL);         
   len = tptr - ptr;
 
   if (delim_char != NULL) *delim_char = *tptr;
