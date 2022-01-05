@@ -269,34 +269,24 @@ int islabel(char *label) {
 		in size - number of digits in hex representation - Padded with zeros
 */
 void dec_to_hex(char *hex, int dec, int size) {
-
     int temp;
     long long q = dec;
     int j;
-
     if (q < 0) {              // Signed representation for negative numbers.
-
         q = pow(2, ((double) size * 4)) +q;              // 2^bits + negative number ran through an unsigned conversion equals the signed conversion.
-
     }
-
     for (j = 0; j < size; j++) {
-
         temp = q % 16;
-
         if (temp < 10)
             temp = temp + 48;
         else
             temp = temp + 55;
-
         hex[size - 1 - j] = temp;
         q = q / 16;
-
     }
     for (int i = 0; hex[i]; i++) {
         hex[i] = tolower(hex[i]);
     }
-
 }
 
 
@@ -306,7 +296,8 @@ char *check_imm_and_return(char *imm, hash_table_t *hash_table) {
     if (islabel(imm)) {
         imm1hex = return_label(imm, hash_table);
     } else if (isHexdecimal(imm)) {
-        imm1hex = imm + 2;
+        int i =  strtol(imm, NULL, 16);
+        dec_to_hex(imm1hex, i, 3);
     } else {
         dec_to_hex(imm1hex, atoi(imm), 3);
     }
@@ -374,7 +365,7 @@ char *return_label(char *imm1, hash_table_t *hash_table) {
             char *address = hash_find(hash_table, imm1, strlen(imm1) + 1);
             int check = *address;
 
-            char  *temp_address;        
+            char  *temp_address;
             temp_address = calloc_and_check(12, sizeof(char));
 
             dec_to_hex(temp_address, check, 3);
@@ -395,7 +386,8 @@ void word_instruction(char *address, char *value, char *Mem) {
     if (isDecimal(value)) {
         dec_to_hex(value_hex,atoi(value),8);
     } else {
-        value_hex += 2;
+        int i =  strtol(value, NULL, 16);
+        dec_to_hex(value_hex,i,8);
     }
     int value_address;
     if (isHexdecimal(address)) {
