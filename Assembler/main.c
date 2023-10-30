@@ -11,48 +11,25 @@
 #endif
 #define MAX_LINE_LENGTH 500
 
-// checks if the string is decimal number
 int isDecimal(char *label) {
     char *pos;
     pos = label;
     while (*pos != '\0') {
-        if ((isdigit(*pos)) || (*pos == '-')) {
+        if ((isdigit(*pos))||(*pos =='-')) {
             pos++;
-        } else {
+        }else {
             return 0;
         }
     }
     return 1;
 }
 
-// checks if the string is hex number
+
 int isHexdecimal(const char *label) {
     if (label[0] == '0' && label[1] == 'x') {
         return 1;
     }
     return 0;
-}
-
-// checks if the string is label
-int islabel(char *label) {
-    return (!isHexdecimal(label)) && (!isDecimal(label));
-}
-
-/*
-  description:
-	malloc wrapper with added check
-
-*/
-void *calloc_and_check(size_t count, size_t elem_size) {
-
-    void *ptr = calloc(count, elem_size);
-
-    if (ptr == NULL) {
-        printf("Memory assignment error encountered\nTerminating program...");
-        exit(-1);
-    }
-
-    return (ptr);
 }
 
 /*
@@ -111,6 +88,8 @@ struct {
         {"out",  "14"},
         {"halt", "15"},
         {NULL,   0}};
+
+char *return_label(char *imm1, hash_table_t *table);
 
 
 // Array that holds the supported instructions
@@ -171,7 +150,7 @@ char *register_address(char *registerName) {
     return NULL;
 }
 
-// convert hex to decimal
+
 int convert_to_decimal(char *hex_value) {
     char hex[10];
     long long decimal = 0, base = 1;
@@ -190,43 +169,70 @@ int convert_to_decimal(char *hex_value) {
             base *= 16;
         }
     }
-    return (int) (decimal);
+    return (int)(decimal);
 }
 
 
 /*
   description:
-	 write data to dmemin file.
+	malloc wrapper with added check
+
+*/
+void *calloc_and_check(size_t count, size_t elem_size) {
+
+    void *ptr = calloc(count, elem_size);
+
+    if (ptr == NULL) {
+        printf("Memory assignment error encountered\nTerminating program...");
+        exit(-1);
+    }
+
+    return (ptr);
+}
+
+/*
+  description:
+	 write data to output file.
+
+	parameters:
+	in p_fname
+	in line_size - length of one line.
+	in data_buffer - data is formatted without seperetors or newlines, i.e for data_buffer = "0000" and line_size = 2,  00  is the output
+																													    00
 */
 
 void write_mem_file(char *Mem, char *data, int line_num) {
 
     //FILE *fptr = Mem;
-    FILE *fptr = NULL;
+    FILE *fptr=NULL;
     fptr = fopen(Mem, "r");
-    FILE *fcpy = NULL;
+    FILE *fcpy=NULL;
     fcpy = fopen("cpy.txt", "w+");
     if (fptr == NULL) {
         printf("Memory file could not opened.");
         exit(1);
     }
-    char *mem_line = calloc_and_check(10, sizeof(char));
+    //
+    char *mem_line = calloc_and_check(10,sizeof(char));
+    //memset(mem_line, 0, sizeof mem_line);
     int replaced = 0;
     int count = 0;
     while (fgets(mem_line, 10, fptr) != NULL) {
         count++;
         /* If current mem_line is mem_line to replace */
-        if (count == line_num + 1) {
+        if (count == line_num+1) {
             replaced = 1;
             fputs(data, fcpy);
             fputs("\n", fcpy);
-        } else {
+        }
+        else
+        {
             fputs(mem_line, fcpy);
         }
 
     }
     if (!replaced) {
-        mem_line = "00000000";
+        mem_line="00000000";
         while (count < line_num) {
             fputs(mem_line, fcpy);
             fputs("\n", fcpy);
@@ -237,9 +243,9 @@ void write_mem_file(char *Mem, char *data, int line_num) {
     }
     fclose(fptr);
     fseek(fcpy, 0, SEEK_SET);
-    fptr = NULL;
+    fptr=NULL;
     fptr = fopen(Mem, "w");
-    mem_line = calloc_and_check(10, sizeof(char));
+    mem_line = calloc_and_check(10,sizeof(char));
     while (fgets(mem_line, 10, fcpy) != NULL) {
         fputs(mem_line, fptr);
     }
@@ -249,6 +255,9 @@ void write_mem_file(char *Mem, char *data, int line_num) {
     //free(fptr);
 }
 
+int islabel(char *label) {
+    return (!isHexdecimal(label)) && (!isDecimal(label));
+}
 
 /*
   description:
@@ -264,8 +273,7 @@ void dec_to_hex(char *hex, int dec, int size) {
     long long q = dec;
     int j;
     if (q < 0) {              // Signed representation for negative numbers.
-        q = pow(2, ((double) size * 4)) +
-            q;              // 2^bits + negative number ran through an unsigned conversion equals the signed conversion.
+        q = pow(2, ((double) size * 4)) +q;              // 2^bits + negative number ran through an unsigned conversion equals the signed conversion.
     }
     for (j = 0; j < size; j++) {
         temp = q % 16;
@@ -281,42 +289,14 @@ void dec_to_hex(char *hex, int dec, int size) {
     }
 }
 
-//return the value of the label
-char *return_label(char *imm1, hash_table_t *hash_table) {
 
-    if (strcmp(imm1, "0") != 0) {
-        if (isDecimal(imm1)) {
-            int value = atoi(imm1);
-            dec_to_hex(imm1, value, 3);
-            return imm1;
-        } else if (islabel(imm1)) {
-            // Find hash address for a label and put in an immediate
-
-            char *address = hash_find(hash_table, imm1, strlen(imm1) + 1);
-            int check = *address;
-
-            char *temp_address;
-            temp_address = calloc_and_check(12, sizeof(char));
-
-            dec_to_hex(temp_address, check, 3);
-            return temp_address;
-
-        } else {
-            imm1 += 2;
-            return imm1;
-        }
-    }
-    return "0";
-}
-
-// check if label and if so finding it and returning is value
 char *check_imm_and_return(char *imm, hash_table_t *hash_table) {
     char *imm1hex;
     imm1hex = calloc_and_check(12, sizeof(char));
     if (islabel(imm)) {
         imm1hex = return_label(imm, hash_table);
     } else if (isHexdecimal(imm)) {
-        int i = strtol(imm, NULL, 16);
+        int i =  strtol(imm, NULL, 16);
         dec_to_hex(imm1hex, i, 3);
     } else {
         dec_to_hex(imm1hex, atoi(imm), 3);
@@ -324,9 +304,9 @@ char *check_imm_and_return(char *imm, hash_table_t *hash_table) {
     return imm1hex;
 }
 
-//function that take parse instruction and printing it in hex at the out file
 void rtype_instruction(char *instruction, char *rd, char *rs, char *rt, char *rm, char *imm1, char *imm2, FILE *Out,
                        hash_table_t *hash_table) {
+    int count = 0;
     char *opcode = NULL;
     // Set the instruction bits
     for (int i = 0; rMap[i].name != NULL; i++) {
@@ -371,15 +351,43 @@ void rtype_instruction(char *instruction, char *rd, char *rs, char *rt, char *rm
 }
 
 
-// function for .word instruction
+char *return_label(char *imm1, hash_table_t *hash_table) {
+
+    if (strcmp(imm1, "0") != 0) {
+        if (isDecimal(imm1)) {
+            int value = atoi(imm1);
+            dec_to_hex(imm1,value,3);
+            return imm1;
+        }
+        else if (islabel(imm1)) {
+            // Find hash address for a label and put in an immediate
+
+            char *address = hash_find(hash_table, imm1, strlen(imm1) + 1);
+            int check = *address;
+
+            char  *temp_address;
+            temp_address = calloc_and_check(12, sizeof(char));
+
+            dec_to_hex(temp_address, check, 3);
+            return temp_address;
+
+        } else {
+            imm1 += 2;
+            return imm1;
+        }
+    }
+    return "0";
+}
+
+
 void word_instruction(char *address, char *value, char *Mem) {
     char *value_hex;
-    value_hex = calloc_and_check(9, sizeof(char));
+    value_hex = calloc_and_check(9,sizeof(char));
     if (isDecimal(value)) {
-        dec_to_hex(value_hex, atoi(value), 8);
+        dec_to_hex(value_hex,atoi(value),8);
     } else {
-        int i = strtol(value, NULL, 16);
-        dec_to_hex(value_hex, i, 8);
+        int i =  strtol(value, NULL, 16);
+        dec_to_hex(value_hex,i,8);
     }
     int value_address;
     if (isHexdecimal(address)) {
@@ -390,7 +398,6 @@ void word_instruction(char *address, char *value, char *Mem) {
     write_mem_file(Mem, value_hex, value_address);
 }
 
-//function for parsing input file
 void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem) {
     char *token_pointer, *token = NULL;
     int instruction_count = 1;
@@ -422,7 +429,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                 if (strstr(token, ":")) {
                     instruction_count--;
 
-                    //printf("Label\n");
+                    printf("Label\n");
 
                     // Strip out ':'
                     //printf("Label: %s at %d with address %d: \n", token, line_num, instruction_count);
@@ -436,14 +443,14 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                     int32_t insert = hash_insert(hash_table, token, strlen(token) + 1, inst_count);
 
                     if (insert != 1) {
-                        printf("Error inserting into hash table\n");
+                        printf( "Error inserting into hash table\n");
                         exit(1);
                     }
                 }
             } else if (pass == 2) {
 
                 if (pass_checked == 0) {
-                    //printf("############    Pass 2   ##############\n");
+                    printf("############    Pass 2   ##############\n");
                     pass_checked = 1;
                 }
 
@@ -457,20 +464,20 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                     char **reg_store;
                     reg_store = malloc(6 * sizeof(char *));
                     if (reg_store == NULL) {
-                        printf("Out of memory\n");
+                        printf( "Out of memory\n");
                         exit(1);
                     }
                     for (int i = 0; i < 6; i++) {
                         if (i < 4) {
                             reg_store[i] = malloc(4 * sizeof(char));
                             if (reg_store[i] == NULL) {
-                                printf("Out of memory\n");
+                                printf( "Out of memory\n");
                                 exit(1);
                             }
                         } else {
                             reg_store[i] = malloc(50 * sizeof(char));//imm can be 50 chr long
                             if (reg_store[i] == NULL) {
-                                printf("Out of memory\n");
+                                printf( "Out of memory\n");
                                 exit(1);
                             }
                         }
@@ -490,7 +497,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                         count++;
                         free(reg);
                     }
-                    if (count != 6) {
+                    if(count != 6){
                         strcpy(reg_store[count], tmp);
                     }
 
@@ -517,7 +524,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                     }
                     reg_store[0] = malloc(5 * sizeof(char));
                     if (reg_store[0] == NULL) {
-                        printf("Out of memory\n");
+                        printf( "Out of memory\n");
                         exit(1);
                     }
                     reg_store[1] = malloc(12 * sizeof(char));
@@ -539,7 +546,7 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                         count++;
                         free(reg);
                     }
-                    if (count != 2) {
+                    if(count != 2){
                         strcpy(reg_store[count], tmp);
                     }
 
@@ -553,20 +560,21 @@ void parser(FILE *fptr, int pass, hash_table_t *hash_table, FILE *Out, char *Mem
                     }
                     free(reg_store);
 
-                } else {
-                    //printf("%s", line);
+                }
+                else
+                {
+                    printf("%s", line);
                     continue;
                 }
 
             }
             instruction_count++;
-            //printf("%s", line);
+            printf("%s", line);
             break;
         }
     }
 }
 
-//open the needed files and starts the assembler
 int main(int argc, char *argv[]) {
     // Make sure correct number of arguments input
     if (argc != 4) {
@@ -574,21 +582,21 @@ int main(int argc, char *argv[]) {
     } else {
         // Open I/O files
         // Check that files opened properly
-        FILE *In = NULL;
+        FILE *In=NULL;
         In = fopen(argv[1], "r+");
         if (In == NULL) {
             printf("Input file could not be opened.");
             exit(1);
         }
 
-        FILE *Out = NULL;
+        FILE *Out=NULL;
         Out = fopen(argv[2], "w");
         if (Out == NULL) {
             printf("Output file could not opened.");
             exit(1);
         }
 
-        FILE *Mem = NULL;
+        FILE *Mem=NULL;
         Mem = fopen(argv[3], "w");
         if (Mem == NULL) {
             printf("Memory file could not opened.");
